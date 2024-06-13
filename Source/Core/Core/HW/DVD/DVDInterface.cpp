@@ -87,10 +87,6 @@ u32 GCAMKeyA;
 u32 GCAMKeyB;
 u32 GCAMKeyC;
 
-static unsigned char media_buffer[0x60];
-static unsigned char network_command_buffer[0x4FFE00];
-static unsigned char network_buffer[64 * 1024];
-
 DVDInterface::DVDInterface(Core::System& system) : m_system(system)
 {
 }
@@ -301,9 +297,6 @@ void DVDInterface::Init()
   {
     AMBaseboard::Init();
 
-    memset(media_buffer, 0, sizeof(media_buffer));
-    memset(network_buffer, 0, sizeof(network_buffer));
-    memset(network_command_buffer, 0, sizeof(network_command_buffer));
   }
 }
 
