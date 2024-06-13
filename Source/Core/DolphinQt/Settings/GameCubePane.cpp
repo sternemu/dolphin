@@ -149,6 +149,7 @@ void GameCubePane::CreateWidgets()
            EXIDeviceType::Dummy,
            EXIDeviceType::Ethernet,
            EXIDeviceType::EthernetXLink,
+           EXIDeviceType::AMBaseboard,   
 #ifdef __APPLE__
            EXIDeviceType::EthernetTapServer,
 #endif
@@ -356,7 +357,8 @@ void GameCubePane::UpdateButton(ExpansionInterface::Slot slot)
   case ExpansionInterface::Slot::SP1:
     has_config = (device == ExpansionInterface::EXIDeviceType::Ethernet ||
                   device == ExpansionInterface::EXIDeviceType::EthernetXLink ||
-                  device == ExpansionInterface::EXIDeviceType::EthernetBuiltIn);
+                  device == ExpansionInterface::EXIDeviceType::EthernetBuiltIn ||
+                  device == ExpansionInterface::EXIDeviceType::AMBaseboard);              
     break;
   }
 
@@ -408,6 +410,10 @@ void GameCubePane::OnConfigPressed(ExpansionInterface::Slot slot)
     dialog.exec();
     return;
   }
+  case ExpansionInterface::EXIDeviceType::AMBaseboard:
+  {
+    return;
+  }    
   default:
     PanicAlertFmt("Unknown settings pressed for {}", device);
     return;
