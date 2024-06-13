@@ -29,6 +29,7 @@
 #include "Core/HW/DVD/DVDThread.h"
 #include "Core/HW/EXI/EXI_DeviceIPL.h"
 #include "Core/HW/SI/SI_Device.h"
+#include "Core/HW/DVD/AMBaseboard.h"
 #include "Core/HW/MMIO.h"
 #include "Core/HW/Memmap.h"
 #include "Core/HW/ProcessorInterface.h"
@@ -38,13 +39,17 @@
 #include "Core/IOS/IOS.h"
 #include "Core/Movie.h"
 #include "Core/System.h"
-#include "Core/AMBaseboard.h"
+#include "Core/HLE/HLE.h"
+#include "Core/PowerPC/PPCSymbolDB.h"
+#include "Core/PowerPC/PowerPC.h"
 
 #include "DiscIO/Blob.h"
 #include "DiscIO/DiscUtils.h"
 #include "DiscIO/Enums.h"
 #include "DiscIO/VolumeDisc.h"
 #include "DiscIO/VolumeWii.h"
+#include "DiscIO/VolumeGC.h"
+#include "DiscIO/Filesystem.h"
 
 #include "VideoCommon/OnScreenDisplay.h"
 
@@ -83,9 +88,6 @@ constexpr u32 DI_CONFIG_REGISTER = 0x24;
 
 // Triforce
 bool enable_gcam = false;
-u32 GCAMKeyA;
-u32 GCAMKeyB;
-u32 GCAMKeyC;
 
 DVDInterface::DVDInterface(Core::System& system) : m_system(system)
 {
@@ -275,6 +277,8 @@ void DVDInterface::Init()
   m_DIIMMBUF = 0;
   m_DICFG.Hex = 0;
   m_DICFG.CONFIG = 1;  // Disable bootrom descrambler
+  m_DICFG.Hex |= 8;    /* The Triforce IPL checks this bit
+                              to set the physical memory to either 50MB(unset) or 24MB(set)  */
 
   ResetDrive(false);
 
@@ -298,13 +302,6 @@ void DVDInterface::Init()
     AMBaseboard::Init();
 
   }
-}
-
-void InitKeys(u32 KeyA, u32 KeyB, u32 KeyC)
-{
-  GCAMKeyA =  KeyA ;
-  GCAMKeyB =  KeyB ;
-  GCAMKeyC =  KeyC ;
 }
 
 // Resets state on the MN102 chip in the drive itself, but not the DI registers exposed on the
@@ -716,16 +713,19 @@ bool DVDInterface::CheckReadPreconditions()
     SetDriveError(DriveError::MotorStopped);
     return false;
   }
-  if (m_drive_state == DriveState::DiscIdNotRead)
+  if (!enable_gcam) // SegaBoot will not read the ID
   {
-    ERROR_LOG_FMT(DVDINTERFACE, "Disc id not read.");
-    SetDriveError(DriveError::NoDiscID);
-    return false;
+    if (state.drive_state == DriveState::DiscIdNotRead)
+    {
+      ERROR_LOG_FMT(DVDINTERFACE, "Disc id not read.");
+      SetDriveError(DriveError::NoDiscID);
+      return false;
+    }
   }
   return true;
 }
 
-// Iff false is returned, ScheduleEvent must be used to finish executing the command
+// If false is returned, ScheduleEvent must be used to finish executing the command
 bool DVDInterface::ExecuteReadCommand(u64 dvd_offset, u32 output_address, u32 dvd_length,
                                       u32 output_length, const DiscIO::Partition& partition,
                                       ReplyType reply_type, DIInterruptType* interrupt_type)
@@ -783,44 +783,27 @@ void DVDInterface::ExecuteCommand(ReplyType reply_type)
   DIInterruptType interrupt_type = DIInterruptType::TCINT;
   bool command_handled_by_thread = false;
 
-   NOTICE_LOG_FMT(DVDINTERFACE, "DVD: {:08x} {:08x} {:08x} DMA=addr:{:08x},len:{:08x} Key: {:08x} {:08x} {:08x}",
-                 state.DICMDBUF[0], state.DICMDBUF[1] << 2, state.DICMDBUF[2], state.DIMAR,
-                 state.DILENGTH, GCAMKeyA, GCAMKeyB, GCAMKeyC);
+  NOTICE_LOG_FMT(DVDINTERFACE,
+                 "DVD: {:08x} {:08x} {:08x} DMA=addr:{:08x},len:{:08x}",
+                 state.DICMDBUF[0], state.DICMDBUF[1], state.DICMDBUF[2], state.DIMAR, state.DILENGTH);
 
 	if (enable_gcam)
   {
-    state.DICMDBUF[0] ^= GCAMKeyA;
-    state.DICMDBUF[1] ^= GCAMKeyB;
-    state.DICMDBUF[2] ^= GCAMKeyC;
+      u32 ret = AMBaseboard::ExecuteCommand( state.DICMDBUF, state.DIMAR, state.DILENGTH );
+    if (ret != 1)
+    {
+			state.DIIMMBUF = ret;
 
-    u32 seed =  state.DICMDBUF[0] >> 16;
-
-    GCAMKeyA *= seed;
-    GCAMKeyB *= seed;
-    GCAMKeyC *= seed;
-
-   state.DICMDBUF[0] =  state.DICMDBUF[0] << 24;
-
-   u32 ret = AMBaseboard::ExecuteCommand(state.DICMDBUF[0], state.DILENGTH, state.DIMAR,
-                                            state.DICMDBUF[1] << 2, (u32)reply_type);
-   if (ret != 0x23)
-   {
-      state.DIIMMBUF = ret;
-
-      // transfer is done
-      state.DICR.TSTART = 0;
-      state.DILENGTH = 0;
-      GenerateDIInterrupt(DIInterruptType::TCINT);
-      state.error_code = DriveError::None;
-
-      return;
-   }
+			// transfer is done
+			state.DICR.TSTART = 0;
+			state.DILENGTH = 0;
+			GenerateDIInterrupt(DIInterruptType::TCINT);
+			state.error_code = DriveError::None;
+		  return; 
+    }
+    state.DICMDBUF[1] >>= 2;
+    // Normal read command pass on to normal handling
   }
-
-  NOTICE_LOG_FMT(DVDINTERFACE,
-                 "DVD: {:08x} {:08x} {:08x} DMA=addr:{:08x},len:{:08x} Key: {:08x} {:08x} {:08x}",
-                 state.DICMDBUF[0], state.DICMDBUF[1] << 2, state.DICMDBUF[2], state.DIMAR,
-                 state.DILENGTH, GCAMKeyA, GCAMKeyB, GCAMKeyC); 
 
   // DVDLowRequestError needs access to the error code set by the previous command
   if (static_cast<DICommand>(m_DICMDBUF[0] >> 24) != DICommand::RequestError)
@@ -832,7 +815,6 @@ void DVDInterface::ExecuteCommand(ReplyType reply_type)
   case DICommand::Inquiry:
   {
     // (shuffle2) Taken from my Wii
-    auto& memory = m_system.GetMemory();
     memory.Write_U32(0x00000002, m_DIMAR);      // Revision level, device code
     memory.Write_U32(0x20060526, m_DIMAR + 4);  // Release date
     memory.Write_U32(0x41000000, m_DIMAR + 8);  // Version
@@ -966,7 +948,6 @@ void DVDInterface::ExecuteCommand(ReplyType reply_type)
     // Most (all?) other games have 0x34 0's at the start of the BCA, but don't actually
     // read it.  NSMBW doesn't care about the other 12 bytes (which contain manufacturing data?)
 
-    auto& memory = m_system.GetMemory();
     // TODO: Read the .bca file that cleanrip generates, if it exists
     // memory.CopyToEmu(output_address, bca_data, 0x40);
     memory.Memset(m_DIMAR, 0, 0x40);
