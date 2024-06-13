@@ -40,7 +40,8 @@ enum class DICommand : u8
   Inquiry = 0x12,
   ReportKey = 0xa4,
   Read = 0xa8,
-  Seek = 0xab,
+  Write= 0xaa,
+  Seek = 0xab, // GCAM - Execute
   ReadDVDMetadata = 0xad,
   ReadDVD = 0xd0,
   ReadDVDConfig = 0xd1,
@@ -144,6 +145,7 @@ public:
   void ChangeDisc(const std::vector<std::string>& paths);  // Must only be called on the CPU thread
   void ChangeDisc(const std::string& new_path);            // Must only be called on the CPU thread
   bool AutoChangeDisc();                                   // Must only be called on the CPU thread
+  void InitKeys(u32 KeyA, u32 KeyB, u32 KeyC);
 
   // This function returns true and calls SConfig::SetRunningGameMetadata(Volume&, Partition&)
   // if both of the following conditions are true:
