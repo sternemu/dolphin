@@ -1,6 +1,8 @@
 // Copyright 2008 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#pragma warning(disable : 4189)
+
 #include "Core/Boot/Boot.h"
 
 #include <algorithm>
@@ -35,6 +37,7 @@
 #include "Core/HLE/HLE.h"
 #include "Core/HW/DVD/DVDInterface.h"
 #include "Core/HW/EXI/EXI_DeviceIPL.h"
+#include "Core/HW/DVD/AMBaseboard.h"
 #include "Core/HW/Memmap.h"
 #include "Core/HW/VideoInterface.h"
 #include "Core/Host.h"
@@ -398,6 +401,7 @@ bool CBoot::Load_BS2(Core::System& system, const std::string& boot_rom_filename)
   constexpr u32 MPAL_v1_1 = 0x667D0B64;  // Brazil
   constexpr u32 PAL_v1_0 = 0x4F319F43;
   constexpr u32 PAL_v1_2 = 0xAD1B7F16;
+  constexpr u32 DEV_v1_0 = 0xD1883221;   // Triforce
 
   // Load the whole ROM dump
   std::string data;
@@ -413,6 +417,7 @@ bool CBoot::Load_BS2(Core::System& system, const std::string& boot_rom_filename)
   case NTSC_v1_1:
   case NTSC_v1_2:
   case MPAL_v1_1:
+  case DEV_v1_0:
     known_ipl = true;
     break;
   case PAL_v1_0:
@@ -458,6 +463,15 @@ bool CBoot::Load_BS2(Core::System& system, const std::string& boot_rom_filename)
   ppc_state.spr[SPR_DBAT3U] = 0xfff0001f;
   ppc_state.spr[SPR_DBAT3L] = 0xfff00001;
   SetupBAT(system, /*is_wii*/ false);
+
+  if( ipl_hash == DEV_v1_0 )
+  {
+    HLE::Patch(0x813048B8, "OSReport");
+    HLE::Patch(0x8130095C, "OSReport"); // Apploader
+
+    //AMBaseboard::InitDIMM();
+    AMBaseboard::FirmwareMap(true);
+  }
 
   ppc_state.pc = 0x81200150;
   return true;
