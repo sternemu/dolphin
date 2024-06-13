@@ -130,6 +130,14 @@ constexpr s32 ConvertSILengthField(u32 field)
   return ((field - 1) & SI_XFER_LENGTH_MASK) + 1;
 }
 
+u32 GetInLength(void)
+{
+  auto& system = Core::System::GetInstance();
+  auto& state = system.GetSerialInterfaceState().GetData();
+  const s32 expected_response_length = ConvertSILengthField(state.com_csr.INLNGTH);
+  return expected_response_length;
+}
+
 void SerialInterfaceManager::GlobalRunSIBuffer(Core::System& system, u64 user_data, s64 cycles_late)
 {
   system.GetSerialInterface().RunSIBuffer(user_data, cycles_late);
