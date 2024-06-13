@@ -28,6 +28,7 @@
 #include "Core/HW/DVD/DVDMath.h"
 #include "Core/HW/DVD/DVDThread.h"
 #include "Core/HW/EXI/EXI_DeviceIPL.h"
+#include "Core/HW/SI/SI_Device.h"
 #include "Core/HW/MMIO.h"
 #include "Core/HW/Memmap.h"
 #include "Core/HW/ProcessorInterface.h"
@@ -37,6 +38,7 @@
 #include "Core/IOS/IOS.h"
 #include "Core/Movie.h"
 #include "Core/System.h"
+#include "Core/AMBaseboard.h"
 
 #include "DiscIO/Blob.h"
 #include "DiscIO/DiscUtils.h"
@@ -78,6 +80,16 @@ constexpr u32 DI_DMA_LENGTH_REGISTER = 0x18;
 constexpr u32 DI_DMA_CONTROL_REGISTER = 0x1C;
 constexpr u32 DI_IMMEDIATE_DATA_BUFFER = 0x20;
 constexpr u32 DI_CONFIG_REGISTER = 0x24;
+
+// Triforce
+bool enable_gcam = false;
+u32 GCAMKeyA;
+u32 GCAMKeyB;
+u32 GCAMKeyC;
+
+static unsigned char media_buffer[0x60];
+static unsigned char network_command_buffer[0x4FFE00];
+static unsigned char network_buffer[64 * 1024];
 
 DVDInterface::DVDInterface(Core::System& system) : m_system(system)
 {
@@ -280,6 +292,26 @@ void DVDInterface::Init()
 
   u64 userdata = PackFinishExecutingCommandUserdata(ReplyType::DTK, DIInterruptType::TCINT);
   core_timing.ScheduleEvent(0, m_finish_executing_command, userdata);
+}
+
+  const ExpansionInterface::EXIDeviceType Type = Config::Get(Config::MAIN_SERIAL_PORT_1);
+  enable_gcam = (Type == ExpansionInterface::EXIDeviceType::AMBaseboard ) ? 1 : 0;
+
+  if (enable_gcam)
+  {
+    AMBaseboard::Init();
+
+    memset(media_buffer, 0, sizeof(media_buffer));
+    memset(network_buffer, 0, sizeof(network_buffer));
+    memset(network_command_buffer, 0, sizeof(network_command_buffer));
+  }
+}
+
+void InitKeys(u32 KeyA, u32 KeyB, u32 KeyC)
+{
+  GCAMKeyA =  KeyA ;
+  GCAMKeyB =  KeyB ;
+  GCAMKeyC =  KeyC ;
 }
 
 // Resets state on the MN102 chip in the drive itself, but not the DI registers exposed on the
@@ -739,6 +771,17 @@ bool DVDInterface::ExecuteReadCommand(u64 dvd_offset, u32 output_address, u32 dv
   return true;
 }
 
+static inline void PrintMBBuffer(u32 Address, u32 Length)
+{
+  auto& memory = Core::System::GetInstance().GetMemory();
+  for( u32 i=0; i < Length; i+=0x10 )
+  {
+    NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: {:08x} {:08x} {:08x} {:08x} ", memory.Read_U32(Address + i),
+                   memory.Read_U32(Address + i + 4), memory.Read_U32(Address + i + 8),
+                   memory.Read_U32(Address + i + 12));
+  }
+}
+
 // When the command has finished executing, callback_event_type
 // will be called using CoreTiming::ScheduleEvent,
 // with the userdata set to the interrupt type.
@@ -746,6 +789,45 @@ void DVDInterface::ExecuteCommand(ReplyType reply_type)
 {
   DIInterruptType interrupt_type = DIInterruptType::TCINT;
   bool command_handled_by_thread = false;
+
+   NOTICE_LOG_FMT(DVDINTERFACE, "DVD: {:08x} {:08x} {:08x} DMA=addr:{:08x},len:{:08x} Key: {:08x} {:08x} {:08x}",
+                 state.DICMDBUF[0], state.DICMDBUF[1] << 2, state.DICMDBUF[2], state.DIMAR,
+                 state.DILENGTH, GCAMKeyA, GCAMKeyB, GCAMKeyC);
+
+	if (enable_gcam)
+  {
+    state.DICMDBUF[0] ^= GCAMKeyA;
+    state.DICMDBUF[1] ^= GCAMKeyB;
+    state.DICMDBUF[2] ^= GCAMKeyC;
+
+    u32 seed =  state.DICMDBUF[0] >> 16;
+
+    GCAMKeyA *= seed;
+    GCAMKeyB *= seed;
+    GCAMKeyC *= seed;
+
+   state.DICMDBUF[0] =  state.DICMDBUF[0] << 24;
+
+   u32 ret = AMBaseboard::ExecuteCommand(state.DICMDBUF[0], state.DILENGTH, state.DIMAR,
+                                            state.DICMDBUF[1] << 2, (u32)reply_type);
+   if (ret != 0x23)
+   {
+      state.DIIMMBUF = ret;
+
+      // transfer is done
+      state.DICR.TSTART = 0;
+      state.DILENGTH = 0;
+      GenerateDIInterrupt(DIInterruptType::TCINT);
+      state.error_code = DriveError::None;
+
+      return;
+   }
+  }
+
+  NOTICE_LOG_FMT(DVDINTERFACE,
+                 "DVD: {:08x} {:08x} {:08x} DMA=addr:{:08x},len:{:08x} Key: {:08x} {:08x} {:08x}",
+                 state.DICMDBUF[0], state.DICMDBUF[1] << 2, state.DICMDBUF[2], state.DIMAR,
+                 state.DILENGTH, GCAMKeyA, GCAMKeyB, GCAMKeyC); 
 
   // DVDLowRequestError needs access to the error code set by the previous command
   if (static_cast<DICommand>(m_DICMDBUF[0] >> 24) != DICommand::RequestError)
@@ -828,12 +910,13 @@ void DVDInterface::ExecuteCommand(ReplyType reply_type)
     }
     break;
 
-  // Used by both GC and Wii
-  case DICommand::Seek:
-    // Currently unimplemented
-    INFO_LOG_FMT(DVDINTERFACE, "Seek: offset={:09x} (ignoring)",
-                 static_cast<u64>(m_DICMDBUF[1]) << 2);
-    break;
+  case DICommand::Seek: // GCAM - Execute
+  {
+      // Currently unimplemented
+      INFO_LOG_FMT(DVDINTERFACE, "Seek: offset={:09x} (ignoring)",
+                   static_cast<u64>(state.DICMDBUF[1]) << 2);
+  }
+  break;
 
   // Wii-exclusive
   case DICommand::ReadDVDMetadata:
