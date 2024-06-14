@@ -83,11 +83,17 @@
     <ClCompile Include="UICommon\ImGuiMenu\ImGuiFrontend.cpp" />
     <ClCompile Include="UICommon\ImGuiMenu\ImGuiNetplay.cpp" />
     <ClCompile Include="UICommon\ImGuiMenu\WinRTKeyboard.cpp" />
+    <ClCompile Include="Core\HW\DVD\AMBaseboard.cpp" />
+    <ClCompile Include="Core\HW\EXI\EXI_DeviceAMBaseboard.cpp" />
+    <ClCompile Include="Core\HW\SI\SI_DeviceAMBaseboard.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="UICommon\ImGuiMenu\ImGuiFrontend.h" />
     <ClInclude Include="UICommon\ImGuiMenu\ImGuiNetplay.h" />
     <ClInclude Include="UICommon\ImGuiMenu\WinRTKeyboard.h" />
+    <ClInclude Include="Core\HW\DVD\AMBaseboard.h" />
+    <ClInclude Include="Core\HW\EXI\EXI_DeviceAMBaseboard.h" />
+    <ClInclude Include="Core\HW\SI\SI_DeviceAMBaseboard.h" />
   </ItemGroup>
   <UsingTask TaskName="GetProductVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
