@@ -4820,6 +4820,36 @@
     <None Include="Sys\GameSettings\XIV.ini">
       <DeploymentContent>true</DeploymentContent>
     </None>
+    <None Include="Sys\GameSettings\SBEY.ini">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Sys\GameSettings\SBGG.ini">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Sys\GameSettings\SBHA.ini">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Sys\GameSettings\SBHN.ini">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Sys\GameSettings\SBHZ.ini">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Sys\GameSettings\SBJA.ini">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Sys\GameSettings\SBKP.ini">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Sys\GameSettings\SBLK.ini">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Sys\GameSettings\SBLL.ini">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Sys\GameSettings\SBNL.ini">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
     <None Include="Sys\GC\dsp_coef.bin">
       <DeploymentContent>true</DeploymentContent>
     </None>
