@@ -796,6 +796,7 @@ void DVDInterface::ExecuteCommand(ReplyType reply_type)
 
 			// transfer is done
 			state.DICR.TSTART = 0;
+      state.DIMAR += state.DILENGTH;
 			state.DILENGTH = 0;
 			GenerateDIInterrupt(DIInterruptType::TCINT);
 			state.error_code = DriveError::None;
