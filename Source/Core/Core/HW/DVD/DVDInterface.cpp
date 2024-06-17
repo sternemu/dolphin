@@ -792,7 +792,8 @@ void DVDInterface::ExecuteCommand(ReplyType reply_type)
       u32 ret = AMBaseboard::ExecuteCommand( state.DICMDBUF, state.DIMAR, state.DILENGTH );
     if (ret != 1)
     {
-			state.DIIMMBUF = ret;
+      if( state.DICMDBUF[0] == 0x12000000 )
+			    state.DIIMMBUF = ret;			
 
 			// transfer is done
 			state.DICR.TSTART = 0;
