@@ -148,12 +148,12 @@ void GameCubePane::CreateWidgets()
            EXIDeviceType::None,
            EXIDeviceType::Dummy,
            EXIDeviceType::Ethernet,
-           EXIDeviceType::EthernetXLink,
-           EXIDeviceType::AMBaseboard,   
+           EXIDeviceType::EthernetXLink,  
 #ifdef __APPLE__
            EXIDeviceType::EthernetTapServer,
 #endif
            EXIDeviceType::EthernetBuiltIn,
+           EXIDeviceType::AMBaseboard,    
        })
   {
     m_slot_combos[ExpansionInterface::Slot::SP1]->addItem(tr(fmt::format("{:n}", device).c_str()),
@@ -357,8 +357,7 @@ void GameCubePane::UpdateButton(ExpansionInterface::Slot slot)
   case ExpansionInterface::Slot::SP1:
     has_config = (device == ExpansionInterface::EXIDeviceType::Ethernet ||
                   device == ExpansionInterface::EXIDeviceType::EthernetXLink ||
-                  device == ExpansionInterface::EXIDeviceType::EthernetBuiltIn ||
-                  device == ExpansionInterface::EXIDeviceType::AMBaseboard);              
+                  device == ExpansionInterface::EXIDeviceType::EthernetBuiltIn );             
     break;
   }
 
