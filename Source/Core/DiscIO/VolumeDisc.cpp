@@ -30,7 +30,7 @@ std::string VolumeDisc::GetGameID(const Partition& partition) const
       u8* bootid_buffer = new u8[file_info->GetTotalSize()];
       if (Read(file_info->GetOffset(), file_info->GetTotalSize(), bootid_buffer, partition))
       {
-        memcpy(id, bootid_buffer + 0x30, sizeof(id));
+        memcpy(id, bootid_buffer + 0x30, sizeof(id) );
         delete[] bootid_buffer;
 
         return DecodeString(id);
