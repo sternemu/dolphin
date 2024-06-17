@@ -47,6 +47,7 @@
 
 #include "DiscIO/Enums.h"
 
+
 // where to put baseboard debug
 #define AMBASEBOARDDEBUG SERIALINTERFACE
 
@@ -143,23 +144,9 @@ CSIDevice_AMBaseboard::CSIDevice_AMBaseboard(SIDevices device, int device_number
   m_wheelinit = 0;
 
   m_motorinit = 0;
-  m_motorforce = 0;
-  m_motorforce_x = 0;
-  m_motorforce_y = 0;
-
-  m_tri_game = 0;
+  m_motorforce_x = 0; 
 
   memset( m_motorreply, 0, sizeof( m_motorreply ) );
-  
-	u64 gameid = 0;
-  
-  sscanf(SConfig::GetInstance().GetGameID().c_str(), "%s", (char*)&gameid);
- 
-  // This is checking for the real game IDs (not those people made up) (See boot.id within the game)
-  if (Common::swap32(gameid) == 0x53424841 || Common::swap32(gameid) == 0x53424747)  // F-Zero AX
-  {
-    m_tri_game = 1;
-  }
 }
 
 constexpr u32 SI_XFER_LENGTH_MASK = 0x7f;
@@ -189,7 +176,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 		switch(command)
 		{
 		case CMD_RESET: // returns ID and dip switches
-    {
+      {
         u32 id = Common::swap32(SI_AM_BASEBOARD | 0x100);
         std::memcpy(_pBuffer, &id, sizeof(id));
         return sizeof(id); 
@@ -218,41 +205,42 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 #define ptr(x) _pBuffer[(p + x)]
 				while (p < real_len+2)
 				{
-					switch (ptr(0))
-					{
-					case 0x10:
-					{
-						DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 10, {:02x} (READ STATUS&SWITCHES)", ptr(1));
-						GCPadStatus PadStatus;
-            PadStatus = Pad::GetStatus( ISIDevice::m_device_number );
-						res[resp++] = 0x10;
-						res[resp++] = 0x2;
+          switch (ptr(0))
+          {
+          case 0x10:
+          {
+            DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 10, {:02x} (READ STATUS&SWITCHES)",
+                          ptr(1));
+            GCPadStatus PadStatus;
+            PadStatus = Pad::GetStatus(ISIDevice::m_device_number);
+            res[resp++] = 0x10;
+            res[resp++] = 0x2;
 
-						/*baseboard test/service switches ???, disabled for a while
-						if (PadStatus.button & PAD_BUTTON_Y)	// Test
-							d10_0 &= ~0x80;
-						if (PadStatus.button & PAD_BUTTON_X)	// Service
-							d10_0 &= ~0x40;
-						*/
-            
+            /*baseboard test/service switches ???, disabled for a while
+            if (PadStatus.button & PAD_BUTTON_Y)	// Test
+              d10_0 &= ~0x80;
+            if (PadStatus.button & PAD_BUTTON_X)	// Service
+              d10_0 &= ~0x40;
+            */
+
             // Horizontal Scanning Frequency switch
             // Required for F-Zero AX booting via Sega Boot
             d10_0 &= ~0x20;
 
-						res[resp++] = d10_0;
-						res[resp++] = d10_1;
-						break;
-					}
-					case 0x11:
-					{
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 11, {:02x} (READ SERIAL NR)", ptr(1));
-						char string[] = "AADE-01A14964511";
-						res[resp++] = 0x11;
-						res[resp++] = 0x10;
-						memcpy(res + resp, string, 0x10);
-						resp += 0x10;
-						break;
-					}          
+            res[resp++] = d10_0;
+            res[resp++] = d10_1;
+            break;
+          }
+          case 0x11:
+          {
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 11, {:02x} (READ SERIAL NR)", ptr(1));
+            char string[] = "AADE-01B98394904";
+            res[resp++] = 0x11;
+            res[resp++] = 0x10;
+            memcpy(res + resp, string, 0x10);
+            resp += 0x10;
+            break;
+          }
           case 0x12:
             NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 12, {:02x} {:02x}", ptr(1), ptr(2));
             res[resp++] = 0x12;
@@ -263,165 +251,247 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
             res[resp++] = 0x14;
             res[resp++] = 0x00;
             break;
-					case 0x15: 
-
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 15, {:02x} (READ FIRM VERSION)", ptr(1));
-						res[resp++] = 0x15;
+          case 0x15:
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 15, {:02x} (READ FIRM VERSION)", ptr(1));
+            res[resp++] = 0x15;
             res[resp++] = 0x02;
             // FIRM VERSION
             // 00.26
             res[resp++] = 0x00;
             res[resp++] = 0x26;
-
-						break;
-					case 0x16:
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 16, {:02x} (READ FPGA VERSION)", ptr(1));
-						res[resp++] = 0x16;
+            break;
+          case 0x16:
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 16, {:02x} (READ FPGA VERSION)", ptr(1));
+            res[resp++] = 0x16;
             res[resp++] = 0x02;
             // FPGA VERSION
             // 07.06
             res[resp++] = 0x07;
-            res[resp++] = 0x06; 
+            res[resp++] = 0x06;
+            break;
+          case 0x1f:
+          {
+            // Only used by SegaBoot for region checks (dev mode skips this check)
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG,
+                           "GC-AM: Command 1f, {:02x} {:02x} {:02x} {:02x} {:02x} (REGION)", ptr(1),
+                           ptr(2), ptr(3), ptr(4), ptr(5));
+            unsigned char string[] = "\x00\x00\x30\x00"
+                                     //"\x01\xfe\x00\x00" // JAPAN
+                                     //"\x02\xfd\x00\x00" // USA
+                                     "\x03\xfc\x00\x00"  // export
+                                     "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff";
+            res[resp++] = 0x1f;
+            res[resp++] = 0x14;
 
-						break;
-					case 0x1f:
-					{
-              // Only used by SegaBoot for region checks (dev mode skips this check)          
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 1f, {:02x} {:02x} {:02x} {:02x} {:02x} (REGION)", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5));
-						unsigned char string[] =  
-							"\x00\x00\x30\x00"
-							//"\x01\xfe\x00\x00" // JAPAN
-							//"\x02\xfd\x00\x00" // USA
-							"\x03\xfc\x00\x00" // export
-							"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff";
-						res[resp++] = 0x1f;
-						res[resp++] = 0x14;
-
-						for( int i=0; i<0x14; ++i )
-							res[resp++] = string[i];
+            for (int i = 0; i < 0x14; ++i)
+              res[resp++] = string[i];
             p += 5;
-					} break;
-			    /* No reply */
-			    case 0x21:
+          }
+          break;
+          /* No reply */
+          case 0x21:
           {
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x21, {:02x}", ptr(1) );
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x21, {:02x}", ptr(1));
             resp += ptr(1) + 2;
-          } break;
-			    /* No reply */
-			    case 0x22:
+          }
+          break;
+          /* No reply */
+          case 0x22:
           {
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x22, {:02x}", ptr(1) );
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x22, {:02x}", ptr(1));
             resp += ptr(1) + 2;
-          } break;
-					case 0x23:
-						if( ptr(1) )
-						{
-							NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x23, {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5) );
-							res[resp++] = 0x23;
-							res[resp++] = 0x00;
-						}
-						else
-						{
-							res[resp++] = 0x23;
-							res[resp++] = 0x00;
-						}
-						break;
-					case 0x24:
-						if( ptr(1) )
-						{
-							NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x24, {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5) );
-							res[resp++] = 0x24;
-							res[resp++] = 0x00;
-						}
-						else
-						{
-							res[resp++] = 0x24;
-							res[resp++] = 0x00;
-						}
-						break;
-					case 0x31:
-					//	NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (MOTOR) {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5));
+          }
+          break;
+          case 0x23:
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x23, {:02x} {:02x}", ptr(1), ptr(2));
+            if (ptr(1))
+            {
+              res[resp++] = 0x23;
+              res[resp++] = 0x00;
+            }
+            else
+            {
+              res[resp++] = 0x23;
+              res[resp++] = 0x00;
+            }
+            break;
+          case 0x24:
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x24, {:02x} {:02x}", ptr(1), ptr(2));
+            if (ptr(1))
+            {
+              res[resp++] = 0x24;
+              res[resp++] = 0x00;
+            }
+            else
+            {
+              res[resp++] = 0x24;
+              res[resp++] = 0x00;
+            }
+            break;
+          case 0x31:
+          {
+            //NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5) );
 
-						// Command Length
-						if( ptr(1) )
-						{
-							// All commands are OR'd with 0x80
-							// Last byte (ptr(5)) is checksum which we don't care about
-							u32 cmd =(ptr(2)^0x80) << 16;
-									cmd|= ptr(3) << 8;
-									cmd|= ptr(4);
+            if (ptr(1))
+            {
+              // Serial - Wheel
+              if (AMBaseboard::GetGameType() == MarioKartGP || AMBaseboard::GetGameType() == MarioKartGP2)
+              {
+                NOTICE_LOG_FMT(AMBASEBOARDDEBUG,
+                               "GC-AM: Command 31 (WHEEL) {:02x}{:02x} {:02x}{:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}",
+                               ptr(2), ptr(3), ptr(4), ptr(5), ptr(6), ptr(7), ptr(8), ptr(9), ptr(10), ptr(11) );
 
-							NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (SERIAL) Command:{:06x}", cmd );
+                res[resp++] = 0x31;
+                res[resp++] = 0x03;
 
-							// Serial - Wheel
-					    if( cmd == 0x7FFFFF )
-					    {
-						    res[resp++] = 0x31;
-						    res[resp++] = 0x03;
-				
-						    res[resp++] = 'C';
-						    res[resp++] = '0';
-
-								if( m_wheelinit == 0 )
-						    {
-							    res[resp++] = '1';
-									m_wheelinit = 1;
-						    }
-                else
+                switch (m_wheelinit)
                 {
-							    res[resp++] = '6';
-						    }
-					    }
-							
-							// Serial - Motor
-							m_motorreply[0] = 0x31;
-							m_motorreply[1] = 0x04;
+                  case 0:
+                    res[resp++] = 'E'; // Error
+                    res[resp++] = '0';
+                    res[resp++] = '0';
+                    m_wheelinit++;
+                    break;
+                  case 1:
+                    res[resp++] = 'C'; // Power Off
+                    res[resp++] = '0';
+                    res[resp++] = '6';
+                    m_wheelinit++;
+                    break;
+                  case 2:
+                    res[resp++] = 'C'; // Power On
+                    res[resp++] = '0';
+                    res[resp++] = '1';
+                    break;
+                  default:
+                    break;
+                  }
+                  /*
+                  u16 CenteringForce= ptr(6);
+                  u16 FrictionForce = ptr(8);
+                  u16 Roll          = ptr(10);
+                  */
+                break;
+              }
 
-							// Status
-							m_motorreply[2] = 0;	
-							m_motorreply[3] = 0;
-							// error
-							m_motorreply[4] = 0;	
+              // Serial Unknown
+              if (AMBaseboard::GetGameType() == GekitouProYakyuu)
+              {
+                u32 cmd =  ptr(2) << 24;
+                    cmd |= ptr(3) << 16;
+                    cmd |= ptr(4) << 8;
+                    cmd |= ptr(5);
 
-							switch(cmd>>16)
-							{
-								case 0x00:
-									if( cmd == 0 )
-										m_motorforce = 0;
-									break;
-								case 0x04:
-									m_motorforce	= 1;
-									m_motorforce_x	= (s16)(cmd<<4);
-									m_motorforce_y  = m_motorforce_x;
-									break;
-								case 0x70:
-									m_motorforce = 0;
-									break;
-								case 0x7A:
-									m_motorforce	= 1;
-									m_motorforce_x	= (s16)(cmd & 0xFFFF);
-									m_motorforce_y  = m_motorforce_x;
-									break;
-								default:
-									break;
-							}
+                if( cmd == 0x00100000 )
+                {
+                    res[resp++] = 0x31;
+                    res[resp++] = 0x03;
+                    res[resp++] = 1;
+                    res[resp++] = 2;
+                    res[resp++] = 3;
+                    break;
+                }
+                break;
+              }
+            }
 
-							//Checksum
-							m_motorreply[5] = m_motorreply[2] ^ m_motorreply[3] ^ m_motorreply[4];
-							resp += 6;
+            u32 cmd_off = 0;
+            // Command Length
+            while (cmd_off < ptr(1))
+            {
+              // All commands are OR'd with 0x80
+              // Last byte (ptr(5)) is checksum which we don't care about
+              u32 cmd = 0;
+              if (AMBaseboard::GetGameType() == FZeroAX)
+              {
+                cmd =  ptr(cmd_off + 2) << 24;
+                cmd |= ptr(cmd_off + 3) << 16;
+                cmd |= ptr(cmd_off + 4) << 8;
+                cmd |= ptr(cmd_off + 5);
+                cmd ^= 0x80000000;
 
-						} else {
-							if( m_motorreply[0] )
-							{
-								memcpy( res+resp, m_motorreply, sizeof(m_motorreply) );
-								resp += sizeof(m_motorreply);
-							} else {
-								res[resp++] = 0x31;
-								res[resp++] = 0x00;
-							}
-						
-						}
-						break;
+                NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (MOTOR) Length:{:02x} Command:{:08x}", ptr(1), cmd );
+              }
+              else
+              {
+                cmd = (ptr(2) ^ 0x80) << 16;
+                cmd |= ptr(3) << 8;
+                cmd |= ptr(4);
+
+                NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (SERIAL) Command:{:06x}", cmd);
+              }
+
+              cmd_off += 4;
+               
+               
+               
+              if (AMBaseboard::GetGameType() == FZeroAX)
+              {
+                // Status
+                m_motorreply[cmd_off + 2] = 0;
+                m_motorreply[cmd_off + 3] = 0;
+
+                // error
+                m_motorreply[cmd_off + 4] = 0;
+
+                switch (cmd >> 24)
+                {
+                  case 0:
+                    break;
+                  case 1: 
+                    break;
+                  case 2: 
+                    break;
+                  case 4: // Move Steering Wheel
+                    // Left
+                    if( cmd & 0x010000 )
+                    {
+                      m_motorforce_x = -((s16)cmd & 0xFF00);
+                    }
+                    else // Right
+                    {
+                      m_motorforce_x = cmd & 0xFF00;
+                    }
+                    break;
+                  case 6:  // nice
+                  case 9:
+                  default:
+                    break;
+                  case 7:
+                  // switch back to normal controls
+                    m_motorinit = 2; 
+                    break;
+                  // reset
+                  case 0x7F:
+                    m_motorinit = 1;
+                    memset( m_motorreply, 0, sizeof(m_motorreply) );
+                    break;
+                }
+
+                // Checksum
+                m_motorreply[cmd_off + 5] = m_motorreply[cmd_off + 2] ^ m_motorreply[cmd_off + 3] ^ m_motorreply[cmd_off + 4];
+              }
+            }
+
+            if( ptr(1) == 0 )
+            { 
+              res[resp++] = 0x31;
+              res[resp++] = 0x00; 
+            }
+            else
+            {
+              if (m_motorinit)
+              {
+                // Motor
+                m_motorreply[0] = 0x31;
+                m_motorreply[1] = ptr(1);  // Same Out as In size
+
+                memcpy(res + resp, m_motorreply, m_motorreply[1] + 2 );
+                resp += m_motorreply[1] + 2;
+              }
+            }
+          }
+          break;
 					case 0x32:
 					//	NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 32 (CARD-Interface)");
 						if( ptr(1) )
@@ -433,7 +503,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 									res[resp++] = 0x32;
 									u32 ReadLength = m_card_read_length - m_card_read;		
 
-                  if( m_tri_game == 1 )
+                  if (AMBaseboard::GetGameType() == FZeroAX)
                   {
                     if( ReadLength > 0x2F )
                         ReadLength = 0x2F;
@@ -468,72 +538,72 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 									res[resp++] = 0x00;	// 0x02
 									res[resp++] = 0x30;	// 0x03
 									break;
-								case CARD_IS_PRESENT:
-									res[resp++] = 0x40;	// 0x01
-									res[resp++] = 0x22;	// 0x02
-									res[resp++] = 0x30;	// 0x03
-									break;
 								case CARD_GET_CARD_STATE:
 									res[resp++] = 0x20;	// 0x01
 									res[resp++] = 0x20|m_card_bit;	// 0x02
 									/*
-										bit 0: PLease take your card
+										bit 0: Please take your card
 										bit 1: endless waiting casues UNK_E to be called
 									*/
-									res[resp++] = 0x00;	// 0x03
-									break;
-								case CARD_7A:
-									res[resp++] = 0x7A;	// 0x01
-									res[resp++] = 0x00;	// 0x02
-									res[resp++] = 0x00;	// 0x03
-									break;
-								case CARD_78:
-									res[resp++] = 0x78;	// 0x01
-									res[resp++] = 0x00;	// 0x02
-									res[resp++] = 0x00;	// 0x03
-									break;
-								case CARD_WRITE_INFO:
-									res[resp++] = 0x7C;	// 0x01
-									res[resp++] = 0x02;	// 0x02
-									res[resp++] = 0x00;	// 0x03
-									break;
-								case CARD_D0:
-									res[resp++] = 0xD0;	// 0x01
-									res[resp++] = 0x00;	// 0x02
-									res[resp++] = 0x00;	// 0x03
-									break;
-								case CARD_80:
-									res[resp++] = 0x80;	// 0x01
-                  if( m_tri_game == 1 )
-                  {
-                    res[resp++] = 0x01;	// 0x02
-                  }
-                  else
-                  {
-                    res[resp++] = 0x31;	// 0x02
-                  }
-									res[resp++] = 0x30;	// 0x03
-									break;
-								case CARD_CLEAN_CARD:
-									res[resp++] = 0xA0;	// 0x01
-									res[resp++] = 0x02;	// 0x02
-									res[resp++] = 0x00;	// 0x03
-									break;
-								case CARD_LOAD_CARD:
-									res[resp++] = 0xB0;	// 0x01
-									res[resp++] = 0x02;	// 0x02
-									res[resp++] = 0x30;	// 0x03
-									break;
-								case CARD_WRITE:
-                  res[resp++] = 0x53;	// 0x01
-									res[resp++] = 0x02;	// 0x02
 									res[resp++] = 0x00;	// 0x03
 									break;
 								case CARD_READ:
 									res[resp++] = 0x33;	// 0x01
 									res[resp++] = 0x02;	// 0x02
                   res[resp++] = 0x53;	// 0x03
-									break;									
+                  break;
+                case CARD_IS_PRESENT:
+                  res[resp++] = 0x40;  // 0x01
+                  res[resp++] = 0x22;  // 0x02
+                  res[resp++] = 0x30;  // 0x03
+                  break;
+                case CARD_WRITE:
+                  res[resp++] = 0x53;  // 0x01
+                  res[resp++] = 0x02;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;
+                case CARD_SET_PRINT_PARAM:
+                  res[resp++] = 0x78;  // 0x01
+                  res[resp++] = 0x00;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;
+                case CARD_REGISTER_FONT:
+                  res[resp++] = 0x7A;  // 0x01
+                  res[resp++] = 0x00;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;
+                case CARD_WRITE_INFO:
+                  res[resp++] = 0x7C;  // 0x01
+                  res[resp++] = 0x02;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;
+                case CARD_EJECT:
+                  res[resp++] = 0x80;  // 0x01
+                  if (AMBaseboard::GetGameType() == FZeroAX)
+                  {
+                      res[resp++] = 0x01;  // 0x02
+                  }
+                  else
+                  {
+                      res[resp++] = 0x31;  // 0x02
+                  }
+                  res[resp++] = 0x30;  // 0x03
+                  break;
+                case CARD_CLEAN_CARD:
+                  res[resp++] = 0xA0;  // 0x01
+                  res[resp++] = 0x02;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;
+                case CARD_LOAD_CARD:
+                  res[resp++] = 0xB0;  // 0x01
+                  res[resp++] = 0x02;  // 0x02
+                  res[resp++] = 0x30;  // 0x03
+                  break;
+                case CARD_SET_SHUTTER:
+                  res[resp++] = 0xD0;  // 0x01
+                  res[resp++] = 0x00;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;						
 								}
 
 								res[resp++] = 0x30;	// 0x04
@@ -586,6 +656,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 										{
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD GetState({:02X})", m_card_bit );
 											m_card_command = CARD_GET_CARD_STATE;
+
                       //if (m_card_memory_size == 0)
                       //{
                       //  std::string card_filename(File::GetUserPath(D_TRIUSER_IDX) + "tricard_" +
@@ -604,7 +675,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                       //  }
                       //}
 
-                      if( m_tri_game == 1 && m_card_memory_size )
+                      if (AMBaseboard::GetGameType() == FZeroAX && m_card_memory_size)
 											{
 												m_card_state_call_count++;
 												if( m_card_state_call_count > 10 )
@@ -630,7 +701,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 												{
 													m_card_memory_size = (u32)File::GetSize(card_filename);
 													if( m_card_memory_size )
-                            if( m_tri_game == 1 )
+                            if (AMBaseboard::GetGameType() == FZeroAX)
                             {
                               m_card_bit = 2;
                             }
@@ -649,7 +720,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											break;
 										case 0x7A000000:
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Unknown7A");
-											m_card_command = CARD_7A;
+											m_card_command = CARD_REGISTER_FONT;
 											break;
 										case 0xB0000000:
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD LoadCard");
@@ -663,8 +734,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 										case 0x33000000:
 										{
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Read");
-											m_card_command = CARD_READ;
-
+											m_card_command = CARD_READ; 
 											//Prepare read packet
 											memset( m_card_read_packet, 0, 0xDB );
 											u32 POff=0;
@@ -691,15 +761,15 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											
 											m_card_read_packet[POff++] = 0x33;	// CARD CMD
 
-											if( m_card_is_inserted )
+											if (m_card_is_inserted)             // CARD Status
 											{
-												m_card_read_packet[POff++] = '1';	// CARD Status
+                        m_card_read_packet[POff++] = 0x31;
 											} else {
-												m_card_read_packet[POff++] = '0';	// CARD Status
+                        m_card_read_packet[POff++] = 0x30;
 											}
 
-											m_card_read_packet[POff++] = '0';		// 
-											m_card_read_packet[POff++] = '0';		// 
+											m_card_read_packet[POff++] = 0x30;		// 
+											m_card_read_packet[POff++] = 0x30;    // 
 
 
 											//Data reply
@@ -728,7 +798,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
 											memcpy( m_card_memory, m_card_buffer+9, m_card_memory_size );										
 										
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARDWrite: {}", m_card_memory_size );
+											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARDWrite: {}", m_card_memory_size );
 											
 											std::string card_filename( File::GetUserPath(D_TRIUSER_IDX) + 
 											"tricard_" + SConfig::GetInstance().GetGameID().c_str() + ".bin" );
@@ -743,37 +813,36 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											break;
 										}
 										case 0x78000000:
-											DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Unknown78");
-											m_card_command	= CARD_78;
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Unknown78");
+											m_card_command	= CARD_SET_PRINT_PARAM;
 											break;
 										case 0x7C000000:
-                      DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD WriteCardInfo");
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD WriteCardInfo");
 											m_card_command	= CARD_WRITE_INFO;
 											break;
 										case 0x7D000000:
-                      DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Print");
-											m_card_command	= CARD_7D;
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Print");
+											m_card_command	= CARD_ERASE;
 											break;
 										case 0x80000000:
-                      DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Unknown80");
-											m_card_command	= CARD_80;
-                      if( m_tri_game != 1 )
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Eject");
+											m_card_command	= CARD_EJECT;
+                      if (AMBaseboard::GetGameType() != FZeroAX)
                       {
                         m_card_bit = 0;
                       }
 											break;
 										case 0xD0000000:
-											DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD UnknownD0");
-                      m_card_command = CARD_D0;
-                      if( m_tri_game != 1 )
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD UnknownD0");
+                      m_card_command = CARD_SET_SHUTTER;
+                      if (AMBaseboard::GetGameType() != FZeroAX)
                       {
                         m_card_bit = 0;
                       }
 											break;
 										default:
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:Unhandled cmd!");
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:[{:08X}]", cmd );
-
+											ERROR_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:Unhandled cmd!");
+                      ERROR_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:[{:08X}]", cmd);
 											//hexdump( m_card_buffer, m_card_offset );
 											break;
 										}
@@ -834,41 +903,41 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
 								switch (cmd)
 								{
-								// read ID data
+								// ID data
 								case 0x10:
 									msg.addData(1);
-                  switch (AMBaseboard::GetControllerType())
-                  {
-                    // F-Zero AX
-                    case 1:
-                    case 3: // Mario Kart GP 1/2
+                  switch (AMBaseboard::GetGameType())
+                  { 
+                    case FZeroAX:
+                    case MarioKartGP:
+                    case MarioKartGP2: 
                     default:
                       msg.addData("namco ltd.;FCA-1;Ver1.01;JPN,Multipurpose + Rotary Encoder");
                     break;
-                    case 2: // Virtua Striker 3 
-                    case 4: // Virtua Striker 4
+                    case VirtuaStriker3: 
+                    case VirtuaStriker4: 
                       msg.addData("SEGA ENTERPRISES,LTD.;I/O BD JVS;837-13551;Ver1.00");
                     break;
                   }
 									msg.addData(0);
 									break;
-								// get command format revision
+								// Command format revision
 								case 0x11:
 									msg.addData(1);
 									msg.addData(0x11);
 									break;
-								// get JVS revision
+								// JVS revision
 								case 0x12:
 									msg.addData(1);
 									msg.addData(0x20);
 									break;
-								// get supported communications versions
+								// Supported communications versions
 								case 0x13:
 									msg.addData(1);
 									msg.addData(0x10);
 									break;
 
-								// get slave features
+								// Slave features
 								/*
 									0x01: Player count, Bit per channel
 									0x02: Coin slots
@@ -886,16 +955,17 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								*/
 								case 0x14:
 									msg.addData(1);
-									switch(AMBaseboard::GetControllerType())
+									switch(AMBaseboard::GetGameType())
 									{
-										case 1: //  F-Zero AX
+                    case FZeroAX: 
 											// 2 Player (12bit) (p2=paddles), 1 Coin slot, 6 Analog-in
 											msg.addData((void *)"\x01\x02\x0C\x00", 4);
 											msg.addData((void *)"\x02\x01\x00\x00", 4);
 											msg.addData((void *)"\x03\x06\x00\x00", 4);
 											msg.addData((void *)"\x00\x00\x00\x00", 4);
 											break;
-										case 2: // VS 3
+                    case VirtuaStriker3:
+                    case GekitouProYakyuu:
 											// 2 Player (9bit), 1 Coin slot, no Analog-in
 											msg.addData((void *)"\x01\x02\x0D\x00", 4);
 											msg.addData((void *)"\x02\x02\x00\x00", 4);
@@ -903,8 +973,9 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											msg.addData((void *)"\x10\x01\x00\x00", 4);
 											msg.addData((void *)"\x12\x08\x00\x00", 4);
 											msg.addData((void *)"\x00\x00\x00\x00", 4);
-											break;
-										case 3: // MK GP 1/2
+                      break;
+                    case MarioKartGP:
+                    case MarioKartGP2: 
 										default:
 											//1 Player (15bit), 1 Coin slot, 3 Analog-in, 1 CARD, 1 Driver-out
 											msg.addData((void *)"\x01\x01\x0F\x00", 4);
@@ -913,8 +984,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                       msg.addData((void *)"\x10\x01\x00\x00", 4);
                       msg.addData((void *)"\x12\x01\x00\x00", 4);
 											msg.addData((void *)"\x00\x00\x00\x00", 4);
-											break;
-                    case 4:  // VS 4
+                      break;
+                    case VirtuaStriker4:
                       // 2 Player (10bit), 1 Coin slot, 4 Analog-in
                       msg.addData((void*)"\x01\x02\x0A\x00", 4);
                       msg.addData((void*)"\x02\x01\x00\x00", 4);
@@ -948,130 +1019,169 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
 									for( int i=0; i<player_count; ++i )
                   { 
-                    PadStatus = Pad::GetStatus(0);
 										unsigned char player_data[3] = {0,0,0};
 
-										switch(AMBaseboard::GetControllerType())
+										switch(AMBaseboard::GetGameType())
 										{
-										// Controller configuration for F-Zero AX
-										case 1:
-										if( i == 0 )
-										{
-											// Start
-											if( PadStatus.button & PAD_BUTTON_START )
-												player_data[0] |= 0x80;
-											// Service button
-											if( PadStatus.button & PAD_BUTTON_X )
-												player_data[0] |= 0x40;
-											// Boost
-											if( PadStatus.button & PAD_BUTTON_Y )
-												player_data[0] |= 0x02;
-											// View Change 1
-											if( PadStatus.button & PAD_BUTTON_RIGHT )
-												player_data[0] |= 0x20;		
-											// View Change 2
-											if( PadStatus.button & PAD_BUTTON_LEFT )
-												player_data[0] |= 0x10;	
-											// View Change 3
-											if( PadStatus.button & PAD_BUTTON_UP )
-												player_data[0] |= 0x08;	
-											// View Change 4
-											if( PadStatus.button & PAD_BUTTON_DOWN )
-												player_data[0] |= 0x04;
-										}
-										else if ( i == 1 )
-										{
-											//  Paddle left
-                      if( PadStatus.button & PAD_BUTTON_A )
-												player_data[0] |= 0x20;
-											//  Paddle right
-                      if( PadStatus.button & PAD_BUTTON_B )
-												player_data[0] |= 0x10;
-										}
-										break;
-										// Controller configuration for Virtua Striker 3 games
-										case 2:
-											// Start
-											if( PadStatus.button & PAD_BUTTON_START )
-												player_data[0] |= 0x80;
-											// Service button
-											if( PadStatus.button & PAD_BUTTON_X )		
-												player_data[0] |= 0x40;
-											//  Long Pass
-											if( PadStatus.button & PAD_TRIGGER_L )
-												player_data[0] |= 0x01;
-											//  Short Pass
-											if( PadStatus.button & PAD_TRIGGER_R )
-												player_data[0] |= 0x02;
-											// Shoot
-											if( PadStatus.button & PAD_BUTTON_A )
-												player_data[1] |= 0x80;
-											// Dash
-											if( PadStatus.button & PAD_BUTTON_B )
-												player_data[1] |= 0x40;
-											// Tactics (U)
-											if( PadStatus.button & PAD_BUTTON_LEFT )	
-												player_data[0] |= 0x20;
-											// Tactics (M)
-											if( PadStatus.button & PAD_BUTTON_UP )		
-												player_data[0] |= 0x08;	
-											// Tactics (D)
-											if( PadStatus.button & PAD_BUTTON_RIGHT )	
-												player_data[0] |= 0x04;
-											break;
-										// Controller configuration for Mario Kart and other games
-										default:
-										case 3:
-											// Start
-											if( PadStatus.button & PAD_BUTTON_START )
-												player_data[0] |= 0x80;
-											// Service button
-											if( PadStatus.button & PAD_BUTTON_X )
-												player_data[0] |= 0x40;
-											// Item button
-											if( PadStatus.button & PAD_BUTTON_A )		
-												player_data[1] |= 0x20;	
-											// VS-Cancel button
-											if( PadStatus.button & PAD_BUTTON_B )		
-												player_data[1] |= 0x02;
-											break;
-                    // Controller configuration for Virtua Striker 4 games
-                    case 4:
-                      // Start
-                      if (PadStatus.button & PAD_BUTTON_START)
-                        player_data[0] |= 0x80;
-                      // Service button
-                      if (PadStatus.button & PAD_BUTTON_X)
-                        player_data[0] |= 0x40;
-                      // Long Pass
-                      if (PadStatus.button & PAD_TRIGGER_L)
-                        player_data[0] |= 0x01;
-                      // Short Pass
-                      if (PadStatus.button & PAD_TRIGGER_R)
-                        player_data[0] |= 0x02;
-                      // Shoot
-                      if (PadStatus.button & PAD_BUTTON_A)
-                        player_data[1] |= 0x80;
-                      // Dash
-                      if (PadStatus.button & PAD_BUTTON_B)
-                        player_data[1] |= 0x40;
-                      // Tactics (U)
-                      if (PadStatus.button & PAD_BUTTON_LEFT)
-                        player_data[0] |= 0x20;
-                      // Tactics (M)
-                      if (PadStatus.button & PAD_BUTTON_UP)
-                        player_data[0] |= 0x08;
-                      // Tactics (D)
-                      if (PadStatus.button & PAD_BUTTON_RIGHT)
-                        player_data[0] |= 0x04;
+										  // Controller configuration for F-Zero AX
+                      case FZeroAX:
+                      PadStatus = Pad::GetStatus(0);
+										  if( i == 0 )
+										  {
+											  // Start
+											  if( PadStatus.button & PAD_BUTTON_START )
+												  player_data[0] |= 0x80;
+											  // Service button
+											  if( PadStatus.button & PAD_BUTTON_X )
+												  player_data[0] |= 0x40;
+											  // Boost
+											  if( PadStatus.button & PAD_BUTTON_Y )
+												  player_data[0] |= 0x02;
+											  // View Change 1
+											  if( PadStatus.button & PAD_BUTTON_RIGHT )
+												  player_data[0] |= 0x20;		
+											  // View Change 2
+											  if( PadStatus.button & PAD_BUTTON_LEFT )
+												  player_data[0] |= 0x10;	
+											  // View Change 3
+											  if( PadStatus.button & PAD_BUTTON_UP )
+												  player_data[0] |= 0x08;	
+											  // View Change 4
+											  if( PadStatus.button & PAD_BUTTON_DOWN )
+												  player_data[0] |= 0x04;
+										  }
+										  else if ( i == 1 )
+										  {
+											  //  Paddle left
+                        if( PadStatus.button & PAD_BUTTON_A )
+												  player_data[0] |= 0x20;
+											  //  Paddle right
+                        if( PadStatus.button & PAD_BUTTON_B )
+												  player_data[0] |= 0x10;
+										  }
+										  break;
+										  // Controller configuration for Virtua Striker 3 games
+                      case VirtuaStriker3:
+                        PadStatus = Pad::GetStatus(i);
+											  // Start
+											  if( PadStatus.button & PAD_BUTTON_START )
+												  player_data[0] |= 0x80;
+											  // Service button
+											  if( PadStatus.button & PAD_BUTTON_X )		
+												  player_data[0] |= 0x40;
+											  // Long Pass
+											  if( PadStatus.button & PAD_TRIGGER_L )
+												  player_data[0] |= 0x01;
+											  // Short Pass
+											  if( PadStatus.button & PAD_TRIGGER_R )
+                          player_data[1] |= 0x80;
+											  // Shoot
+											  if( PadStatus.button & PAD_BUTTON_A )
+                          player_data[0] |= 0x02;
+											  // Left
+											  if( PadStatus.button & PAD_BUTTON_LEFT )	
+												  player_data[0] |= 0x08;
+											  // Up
+											  if( PadStatus.button & PAD_BUTTON_UP )		
+												  player_data[0] |= 0x20;	
+											  // Right
+                        if (PadStatus.button & PAD_BUTTON_RIGHT)
+                          player_data[0] |= 0x04;
+                        // Down
+                        if (PadStatus.button & PAD_BUTTON_DOWN)
+                          player_data[0] |= 0x10;
+											  break;
+                      // Controller configuration for Virtua Striker 4 games
+                      case VirtuaStriker4:
+                      {
+                        PadStatus = Pad::GetStatus(i);
+                        // Start
+                        if (PadStatus.button & PAD_BUTTON_START)
+                          player_data[0] |= 0x80;
+                        // Service button
+                        if (PadStatus.button & PAD_BUTTON_X)
+                          player_data[0] |= 0x40;
+                        // Long Pass
+                        if (PadStatus.button & PAD_TRIGGER_L)
+                          player_data[0] |= 0x01;
+                        // Short Pass
+                        if (PadStatus.button & PAD_TRIGGER_R)
+                          player_data[0] |= 0x02;
+                        // Shoot
+                        if (PadStatus.button & PAD_BUTTON_A)
+                          player_data[1] |= 0x80;
+                        // Dash
+                        if (PadStatus.button & PAD_BUTTON_B)
+                          player_data[1] |= 0x40;
+                        // Tactics (U)
+                        if (PadStatus.button & PAD_BUTTON_LEFT)
+                          player_data[0] |= 0x20;
+                        // Tactics (M)
+                        if (PadStatus.button & PAD_BUTTON_UP)
+                          player_data[0] |= 0x08;
+                        // Tactics (D)
+                        if (PadStatus.button & PAD_BUTTON_RIGHT)
+                          player_data[0] |= 0x04;
+                      }
                       break;
+                      // Controller configuration for Gekitou Pro Yakyuu
+                      case GekitouProYakyuu:
+                        PadStatus = Pad::GetStatus(i);
+                        // Start
+                        if (PadStatus.button & PAD_BUTTON_START)
+                          player_data[0] |= 0x80;
+                        // Service button
+                        if (PadStatus.button & PAD_BUTTON_X)
+                          player_data[0] |= 0x40;
+                        //  A
+                        if (PadStatus.button & PAD_BUTTON_B)
+                          player_data[0] |= 0x01;
+                        //  B
+                        if (PadStatus.button & PAD_BUTTON_A)
+                          player_data[0] |= 0x02;
+                        //  Gekitou
+                        if (PadStatus.button & PAD_TRIGGER_L )
+                          player_data[1] |= 0x80;
+                        // Left
+                        if (PadStatus.button & PAD_BUTTON_LEFT)
+                          player_data[0] |= 0x08;
+                        // Up
+                        if (PadStatus.button & PAD_BUTTON_UP)
+                          player_data[0] |= 0x20;
+                        // Right
+                        if (PadStatus.button & PAD_BUTTON_RIGHT)
+                          player_data[0] |= 0x04;
+                        // Down
+                        if (PadStatus.button & PAD_BUTTON_DOWN)
+                          player_data[0] |= 0x10;
+                        break;
+                      // Controller configuration for Mario Kart and other games
+                      default:
+                      case MarioKartGP:
+                      case MarioKartGP2:
+                      {
+                        PadStatus = Pad::GetStatus(0);
+                        // Start
+                        if (PadStatus.button & PAD_BUTTON_START)
+                          player_data[0] |= 0x80;
+                        // Service button
+                        if (PadStatus.button & PAD_BUTTON_X)
+                          player_data[0] |= 0x40;
+                        // Item button
+                        if (PadStatus.button & PAD_BUTTON_A)
+                          player_data[1] |= 0x20;
+                        // VS-Cancel button
+                        if (PadStatus.button & PAD_BUTTON_B)
+                          player_data[1] |= 0x02;
+                      } break;
                     }
+
 										for( int j=0; j<player_byte_count; ++j )
 											msg.addData(player_data[j]);
 									}
 									break;
 								}
-								// read m_coin inputs
+								// Read Coin I/O status
 								case 0x21:
 								{ 
 									int slots = *jvs_io++;
@@ -1095,23 +1205,25 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								case 0x22:
 								{
 									msg.addData(1);	// status
+
                   int analogs = *jvs_io++;
                   GCPadStatus PadStatus;
                   GCPadStatus PadStatus2;
                   PadStatus = Pad::GetStatus(0);
 
-                  switch( AMBaseboard::GetControllerType() )
+                  DEBUG_LOG_FMT( AMBASEBOARDDEBUG, "JVS-IO:Get Analog Inputs Analogs:{}", analogs );
+
+                  switch( AMBaseboard::GetGameType() )
 									{
-										// F-Zero AX
-										case 1:
+                    case FZeroAX:
 											// Steering
-											if( m_motorforce )
+                      if( m_motorinit == 1 )
 											{
 												msg.addData( m_motorforce_x >> 8 );
 												msg.addData( m_motorforce_x & 0xFF );
 
-												msg.addData( m_motorforce_y >> 8);
-												msg.addData( m_motorforce_y & 0xFF );
+                        msg.addData(PadStatus.stickY);
+                        msg.addData((u8)0);
 											}
 											else
 											{
@@ -1137,8 +1249,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											msg.addData((u8)0);
 
 											break;
-										//  Virtua Strike games
-                    case 2:
+                    case VirtuaStriker3:
+                    case VirtuaStriker4:
                     {
                       PadStatus2 = Pad::GetStatus(1); 
 											
@@ -1152,8 +1264,9 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											msg.addData(PadStatus2.stickY);
                       msg.addData((u8)0);
                     } break;
-										// Mario Kart and other games
-										case 3:
+                    default:
+                    case MarioKartGP:
+                    case MarioKartGP2:
 											// Steering
 											msg.addData(PadStatus.stickX);
 											msg.addData((u8)0);
@@ -1167,8 +1280,9 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											msg.addData((u8)0);
 											break;
 									}
+                  break;
 								}
-								// decrease number of coins
+								// Decrease Coin count
 								case 0x30:
 								{
 									int slot = *jvs_io++;
@@ -1184,7 +1298,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 									msg.addData(1);
 									break;
 								}
-								// output the total number of coins
+								// Get Coin Count
 								case 0x35:
 								{
 									int slot = *jvs_io++;
@@ -1208,19 +1322,19 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								}
 								case 0xf0:
 									if (*jvs_io++ == 0xD9)
-										ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:RESET");
+                    NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:RESET");
 									msg.addData(1);
 
 									d10_1 |= 1;
 									break;
 								case 0xf1:
 									node = *jvs_io++;
-                  ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:SET ADDRESS, node={}", node);
+                  NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:SET ADDRESS, node={}", node);
 									msg.addData(node == 1);
 									d10_1 &= ~1;
 									break;
 								default:
-                  ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO: node={}, command={:02x}", node, cmd)
+                  ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO: node={}, command={:02x}", node, cmd);
 									break;
 								}
 
@@ -1240,12 +1354,10 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 							break;
 						}
 					case 0x60:
-              ERROR_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 60, {:02x} {:02x} {:02x}", ptr(1), ptr(2),
-                            ptr(3));
+              NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 60, {:02x} {:02x} {:02x}", ptr(1), ptr(2), ptr(3));
 						break;
 					default:
-            ERROR_LOG_FMT(AMBASEBOARDDEBUG,
-                          "GC-AM: Command {:02x} (unknown) {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(0), ptr(1),
+            ERROR_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command {:02x} (unknown) {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(0), ptr(1),
                           ptr(2), ptr(3), ptr(4), ptr(5));
 						break;
 					}
@@ -1302,7 +1414,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 	return iPosition;
 }
 
-// Not really used on GC-AM
+// Unused
 bool CSIDevice_AMBaseboard::GetData(u32& _Hi, u32& _Low)
 {
 	_Low = 0;
