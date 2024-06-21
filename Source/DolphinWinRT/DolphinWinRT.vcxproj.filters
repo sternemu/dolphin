@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="App.cpp" />
@@ -118,6 +118,36 @@
     </None>
     <None Include="Sys\totaldb.dsy">
       <Filter>Sys</Filter>
+    </None>
+    <None Include="Sys\GameSettings\SBNL.ini">
+      <Filter>Sys\GameSettings</Filter>
+    </None>
+    <None Include="Sys\GameSettings\SBLL.ini">
+      <Filter>Sys\GameSettings</Filter>
+    </None>
+    <None Include="Sys\GameSettings\SBLK.ini">
+      <Filter>Sys\GameSettings</Filter>
+    </None>
+    <None Include="Sys\GameSettings\SBKP.ini">
+      <Filter>Sys\GameSettings</Filter>
+    </None>
+    <None Include="Sys\GameSettings\SBJA.ini">
+      <Filter>Sys\GameSettings</Filter>
+    </None>
+    <None Include="Sys\GameSettings\SBHZ.ini">
+      <Filter>Sys\GameSettings</Filter>
+    </None>
+    <None Include="Sys\GameSettings\SBHN.ini">
+      <Filter>Sys\GameSettings</Filter>
+    </None>
+    <None Include="Sys\GameSettings\SBHA.ini">
+      <Filter>Sys\GameSettings</Filter>
+    </None>
+    <None Include="Sys\GameSettings\SBGG.ini">
+      <Filter>Sys\GameSettings</Filter>
+    </None>
+    <None Include="Sys\GameSettings\SBEY.ini">
+      <Filter>Sys\GameSettings</Filter>
     </None>
     <None Include="Sys\GameSettings\D43E01.ini">
       <Filter>Sys\GameSettings</Filter>
